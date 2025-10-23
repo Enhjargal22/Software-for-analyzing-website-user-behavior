@@ -32,6 +32,22 @@
 ## **Архитектура**
 
 ### C4-модель
+<img width="975" height="656" alt="image" src="https://github.com/user-attachments/assets/4d6f8c5f-0469-4448-9c3c-a120bb2cfbbe" />
+Контейнерный уровень архитектуры программного средства
+
+<img width="858" height="733" alt="image" src="https://github.com/user-attachments/assets/9ebdaee6-2876-40c2-ba5a-dfecd8182568" />
+Компонентный уровень архитектуры программного средства
+
+<img width="691" height="585" alt="image" src="https://github.com/user-attachments/assets/ff0b182e-72ed-441d-8a45-88ee7dc6981f" />
+Компонентный уровень архитектуры Order Service
+
+<img width="975" height="962" alt="image" src="https://github.com/user-attachments/assets/7dee9074-a60d-4510-a0fc-49b8e358fe15" />
+Кодовый уровень архитектуры Auth Module
+
+<img width="975" height="1136" alt="image" src="https://github.com/user-attachments/assets/b558d750-154a-4885-8d9b-aff98867623d" />
+Кодовый уровень архитектуры ProcessingAndReportingModule 
+
+
 
 Иллюстрация и описание архитектура ПС
 
