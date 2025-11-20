@@ -1,4 +1,4 @@
-# **Название проекта**
+<img width="963" height="619" alt="image" src="https://github.com/user-attachments/assets/95a2da71-cc17-4c9a-b0de-25e7279a89ba" /># **Анализ поведения пользователей веб-сайта**
 
 Краткое описание проекта, его цели и основные возможности
 
@@ -35,11 +35,8 @@
 <img width="975" height="656" alt="image" src="https://github.com/user-attachments/assets/4d6f8c5f-0469-4448-9c3c-a120bb2cfbbe" />
 Контейнерный уровень архитектуры программного средства
 
-<img width="858" height="733" alt="image" src="https://github.com/user-attachments/assets/9ebdaee6-2876-40c2-ba5a-dfecd8182568" />
+<img width="6084" height="5564" alt="image" src="https://github.com/user-attachments/assets/4d6e735c-1af7-4f86-bd79-84454941d65f" />
 Компонентный уровень архитектуры программного средства
-
-<img width="691" height="585" alt="image" src="https://github.com/user-attachments/assets/ff0b182e-72ed-441d-8a45-88ee7dc6981f" />
-Компонентный уровень архитектуры Order Service
 
 <img width="975" height="962" alt="image" src="https://github.com/user-attachments/assets/7dee9074-a60d-4510-a0fc-49b8e358fe15" />
 Кодовый уровень архитектуры Auth Module
