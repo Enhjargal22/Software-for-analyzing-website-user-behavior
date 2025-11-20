@@ -1,4 +1,3 @@
-<img width="963" height="619" alt="image" src="https://github.com/user-attachments/assets/95a2da71-cc17-4c9a-b0de-25e7279a89ba" /># **Анализ поведения пользователей веб-сайта**
 
 Краткое описание проекта, его цели и основные возможности
 
