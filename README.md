@@ -1,4 +1,4 @@
-
+Анализ поведения пользователей веб-сайта
 Краткое описание проекта, его цели и основные возможности
 
 Ссылки на репозитории сервера и клиента
@@ -31,13 +31,11 @@
 ## **Архитектура**
 
 ### C4-модель
-<img width="975" height="656" alt="image" src="https://github.com/user-attachments/assets/4d6f8c5f-0469-4448-9c3c-a120bb2cfbbe" />
 Контейнерный уровень архитектуры программного средства
-
 <img width="6084" height="5564" alt="image" src="https://github.com/user-attachments/assets/4d6e735c-1af7-4f86-bd79-84454941d65f" />
 Компонентный уровень архитектуры программного средства
 
-<img width="975" height="962" alt="image" src="https://github.com/user-attachments/assets/7dee9074-a60d-4510-a0fc-49b8e358fe15" />
+<img width="963" height="619" alt="image" src="https://github.com/user-attachments/assets/c4af1caf-a871-4857-801a-d0ec02510e4a" />
 Кодовый уровень архитектуры Auth Module
 
 <img width="975" height="1136" alt="image" src="https://github.com/user-attachments/assets/b558d750-154a-4885-8d9b-aff98867623d" />
