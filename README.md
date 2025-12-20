@@ -54,13 +54,14 @@
 ## **Функциональные возможности**
 
 ### Диаграмма вариантов использования
-
-Диаграмма вариантов использования и ее описание
+<img width="792" height="2479" alt="RCcn3S9030NG_gRm2B0128cIXWaCv-Ii-Ep8-IS4qzEco6lVPGCdHhUoBUeh9tTwyNkPCuRNMrWaVPf2Tc_gWkyg58aMkwWoyJ3Sm_7WBdHDPJl-f_w4pgTIJ2OGWbBd1ghwhyJQMjiwWl2xViKYFwI5s4X7zn9CuukXj0zvwKlfYsghmU3A9R8VGWdObfksoAb32JIKDgv9Nmkoh6C" src="https://github.com/user-attachments/assets/ea712958-ff25-4d14-b476-0a2eb367e02d" />
 
 ### User-flow диаграммы
+<img width="1416" height="1833" alt="d5XRRnD757xthnY5Xy93Kk9SL91wmRbKVQ5LAM-Hh8btOczPxqRZ2Ib5I5megA8gQI0YvH8WaVf2fHYm6nF8yXVE_gEUERiJhtTtOi1IrhjxThzpETzyP-9lMefBjTBqIgqBhh_C9M-oHLwxK9V1Yk_C15uWsMh3LI9bzrnVg4lBWWLIDOAKmH5BVCLJyu6lplAcO6UaoxrY-pdtLy7" src="https://github.com/user-attachments/assets/dbfce445-b6ea-4106-a945-a5920517f0a1" />
+User-Flow для роли «Покупатель».
 
-Описание переходов между части ПС для всех ролей из диаграммы ВИ (название ролей должны совпадать с тем, что указано на c4-модели и диаграмме вариантов использования)
-
+<img width="1368" height="1419" alt="f5ZTRXD75BxtKup2HU4YAJ5924YqZPsuwWr5fTn5iWPxucpPx5gpumIAa6X3GOYAfcbJQFd10KHLbIecmiKDE7w5upVgcRCxyNhNWmrOyYOxi_Dzv-SxPyRxMQ2uLBKLDnDSSBmgbto5dUUb2nNfrxnotdTzoTQM7ILYywxZ2NMfAfWlrR8VcoYB9LvpLS7tr6c-8jYSTBWxUFwiywr" src="https://github.com/user-attachments/assets/e0e00450-5430-40dd-9094-bd0c62ed2c28" />
+User-Flow для роли «Менеджер»
 
 ---
 
