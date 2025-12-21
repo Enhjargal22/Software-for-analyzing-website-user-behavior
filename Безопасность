@@ -1,0 +1,424 @@
+# Безопасность
+
+Система Blazeby реализует комплексный подход к безопасности, обеспечивая защиту данных пользователей и бизнес-процессов через современные механизмы аутентификации и авторизации.
+
+## Подходы к обеспечению безопасности
+
+### 1. Аутентификация на основе JWT токенов
+
+Система использует JSON Web Tokens (JWT) для stateless аутентификации, что позволяет масштабировать приложение без необходимости хранения сессий на сервере.
+
+**Процесс аутентификации:**
+
+```java
+@PostMapping("/login")
+public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
+    logger.info("Login attempt for email: {}", loginRequest.getEmail());
+    
+    try {
+        Optional<User> userOpt = userService.findByEmail(loginRequest.getEmail());
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("message", "Invalid email or password"));
+        }
+        
+        User user = userOpt.get();
+        
+        // Аутентификация через Spring Security
+        Authentication authentication = authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(
+                user.getUsername(),
+                loginRequest.getPassword()
+            )
+        );
+
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        
+        // Генерация JWT токена с ролями в claims
+        String jwt = tokenProvider.generateToken(authentication);
+        
+        // Создание сессии для мобильных приложений
+        String ipAddress = getClientIpAddress(request);
+        String userAgent = request.getHeader("User-Agent");
+        UserSession session = sessionService.createSession(user, ipAddress, userAgent);
+        
+        return ResponseEntity.ok(Map.of(
+            "sessionId", session.getSessionId(),
+            "token", jwt,
+            "user", Map.of(
+                "id", user.getId(),
+                "username", user.getUsername(),
+                "email", user.getEmail(),
+                "roles", user.getRoles()
+            )
+        ));
+    } catch (BadCredentialsException e) {
+        logger.error("Authentication failed: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(Map.of("message", "Invalid email or password"));
+    }
+}
+```
+
+### 2. Генерация и валидация JWT токенов
+
+**JwtTokenProvider** обеспечивает создание и проверку токенов с включением информации о ролях пользователя:
+
+```java
+@Component
+public class JwtTokenProvider {
+    private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
+
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
+    @Value("${jwt.expiration}")
+    private long jwtExpiration;
+
+    private Key getSigningKey() {
+        byte[] keyBytes = jwtSecret.getBytes();
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    public String generateToken(Authentication authentication) {
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + jwtExpiration);
+
+        // Извлечение ролей из Authentication
+        List<String> roles = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
+
+        logger.debug("Generating token for user: {} with roles: {}", userDetails.getUsername(), roles);
+
+        return Jwts.builder()
+                .setSubject(userDetails.getUsername())
+                .claim("roles", roles)
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token);
+            return true;
+        } catch (ExpiredJwtException e) {
+            logger.error("JWT token expired: {}", e.getMessage());
+            return false;
+        } catch (SignatureException e) {
+            logger.error("Invalid JWT signature: {}", e.getMessage());
+            return false;
+        } catch (JwtException | IllegalArgumentException e) {
+            logger.error("JWT token validation error: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    public String getUsernameFromToken(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        return claims.getSubject();
+    }
+}
+```
+
+### 3. Фильтр аутентификации
+
+**JwtAuthenticationFilter** проверяет JWT токены для каждого входящего запроса и устанавливает контекст безопасности:
+
+```java
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+
+    private final JwtTokenProvider tokenProvider;
+    private final UserDetailsService userDetailsService;
+    private final SessionService sessionService;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+        try {
+            boolean authenticated = false;
+            
+            // Попытка JWT аутентификации
+            String jwt = getJwtFromRequest(request);
+            if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
+                String username = tokenProvider.getUsernameFromToken(jwt);
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                        userDetails, null, userDetails.getAuthorities());
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+                authenticated = true;
+            }
+            
+            // Fallback на сессионную аутентификацию
+            if (!authenticated) {
+                String sessionId = request.getHeader("X-Session-ID");
+                if (StringUtils.hasText(sessionId)) {
+                    Optional<UserSession> sessionOpt = sessionService.getValidSession(sessionId);
+                    if (sessionOpt.isPresent()) {
+                        User user = sessionOpt.get().getUser();
+                        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
+                        
+                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            logger.error("Could not set user authentication in security context", ex);
+        }
+
+        filterChain.doFilter(request, response);
+    }
+
+    private String getJwtFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+}
+```
+
+### 4. Авторизация на основе ролей
+
+**SecurityConfig** определяет детальные правила доступа к endpoints в зависимости от ролей пользователя:
+
+```java
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                // Публичные endpoints
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/articles/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                .requestMatchers("/uploads/**").permitAll()
+                
+                // Аналитика - ADMIN и ANALYTICS
+                .requestMatchers("/api/analytics/**").hasAnyRole("ADMIN", "ANALYTICS")
+                
+                // Управление товарами - ADMIN
+                .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasRole("ADMIN")
+                
+                // Управление статьями - ADMIN и CONTENT_MANAGER
+                .requestMatchers(HttpMethod.POST, "/api/articles/**").hasAnyRole("ADMIN", "CONTENT_MANAGER")
+                .requestMatchers(HttpMethod.PUT, "/api/articles/**").hasAnyRole("ADMIN", "CONTENT_MANAGER")
+                .requestMatchers(HttpMethod.DELETE, "/api/articles/**").hasAnyRole("ADMIN", "CONTENT_MANAGER")
+                
+                // Управление пользователями - ADMIN
+                .requestMatchers("/api/users/admin/**").hasRole("ADMIN")
+                
+                // Заказы - аутентифицированные пользователи
+                .requestMatchers(HttpMethod.GET, "/api/orders/my-orders").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/orders").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/orders/**").hasRole("ADMIN")
+                
+                // Остальные запросы требуют аутентификации
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "X-Session-ID"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Session-ID"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+        
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+}
+```
+
+### 5. Безопасное хранение паролей
+
+Пароли хешируются с использованием BCrypt алгоритма при регистрации:
+
+```java
+@PostMapping("/register")
+public ResponseEntity<?> registerUser(@RequestBody RegisterRequest registerRequest) {
+    if (userService.findByUsername(registerRequest.getUsername()).isPresent()) {
+        return ResponseEntity.badRequest()
+            .body(Map.of("message", "Username is already taken"));
+    }
+
+    User user = new User();
+    user.setUsername(registerRequest.getUsername());
+    user.setEmail(registerRequest.getEmail());
+    // BCrypt хеширование пароля
+    user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
+    
+    Set<String> roles = new HashSet<>();
+    roles.add("ROLE_USER");
+    user.setRoles(roles);
+    user.setEnabled(true);
+
+    User savedUser = userService.saveUser(user);
+    
+    // Автоматическая аутентификация после регистрации
+    Authentication authentication = authenticationManager.authenticate(
+        new UsernamePasswordAuthenticationToken(
+            savedUser.getUsername(),
+            registerRequest.getPassword()
+        )
+    );
+    
+    String jwt = tokenProvider.generateToken(authentication);
+    
+    return ResponseEntity.ok(Map.of(
+        "token", jwt,
+        "user", Map.of(
+            "id", savedUser.getId(),
+            "username", savedUser.getUsername(),
+            "email", savedUser.getEmail(),
+            "roles", savedUser.getRoles()
+        )
+    ));
+}
+```
+
+### 6. Управление сессиями
+
+Система отслеживает активные сессии пользователей с информацией об IP адресе и User-Agent для дополнительной безопасности:
+
+```java
+@PostMapping("/logout")
+public ResponseEntity<?> logout(@RequestBody Map<String, String> request) {
+    String sessionId = request.get("sessionId");
+    if (sessionId != null) {
+        sessionService.deactivateSession(sessionId);
+    }
+    return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+}
+
+@PostMapping("/validate-session")
+public ResponseEntity<?> validateSession(@RequestBody Map<String, String> request) {
+    String sessionId = request.get("sessionId");
+    if (sessionId == null) {
+        return ResponseEntity.badRequest().body(Map.of("valid", false));
+    }
+    
+    Optional<UserSession> sessionOpt = sessionService.getValidSession(sessionId);
+    if (sessionOpt.isPresent()) {
+        sessionService.refreshSession(sessionId);
+        return ResponseEntity.ok(Map.of("valid", true));
+    }
+    
+    return ResponseEntity.ok(Map.of("valid", false));
+}
+```
+
+## Ролевая модель доступа
+
+**USER (Обычный пользователь):**
+– Просмотр публичного контента и товаров.
+– Создание и управление заказами.
+– Добавление товаров в избранное.
+– Оставление отзывов.
+
+**ADMIN (Администратор):**
+– Полный доступ ко всем функциям системы.
+– Управление пользователями и их ролями.
+– Управление товарами, статьями и заказами.
+– Загрузка изображений и просмотр аналитики.
+
+**ANALYTICS (Аналитик):**
+– Просмотр аналитических отчетов и статистики.
+– Анализ поведения пользователей и трендов продаж.
+
+**CONTENT_MANAGER (Менеджер контента):**
+– Создание и управление статьями и товарами.
+– Редактирование описаний и загрузка изображений.
+
+## Механизмы безопасности
+
+**JWT Authentication Filter:**
+– Проверка JWT токенов в Authorization header (Bearer scheme).
+– Fallback на сессионную аутентификацию через X-Session-ID header.
+– Валидация подписи и срока действия токена.
+– Установка SecurityContext с информацией о пользователе.
+
+**Spring Security Configuration:**
+– Stateless сессии для масштабируемости.
+– Публичные endpoints для регистрации и аутентификации.
+– Детальная авторизация на уровне HTTP методов и путей.
+– BCrypt шифрование паролей.
+– CORS конфигурация для кроссдоменных запросов.
+
+**Управление сессиями:**
+– SessionService создает и управляет пользовательскими сессиями.
+– Отслеживание IP адреса и User-Agent для дополнительной безопасности.
+– Автоматическое истечение сессий через определенный период времени.
+– Возможность явного завершения сессии через logout endpoint.
+
+## Конфигурация безопасности
+
+**application.properties:**
+
+```properties
+# JWT Configuration
+jwt.secret=your-secret-key-here-min-256-bits-long
+jwt.expiration=1800000
+
+# Spring Security
+spring.security.user.name=admin
+spring.security.user.password=admin
+
+# Database
+spring.datasource.url=jdbc:mysql://localhost:3306/blazeby
+spring.datasource.username=root
+spring.datasource.password=password
+spring.jpa.hibernate.ddl-auto=update
+```
+
+## Итоги
+
+Система Blazeby обеспечивает многоуровневую защиту через JWT аутентификацию, ролевую авторизацию, BCrypt хеширование паролей и управление сессиями. Такой подход гарантирует безопасность данных пользователей и защиту от несанкционированного доступа к функциям системы. Применение современных технологий Spring Boot 3.x, Spring Security 6.x и JWT позволило построить решение, соответствующее лучшим практикам разработки безопасных веб-приложений.
